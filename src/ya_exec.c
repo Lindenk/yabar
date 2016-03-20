@@ -119,11 +119,17 @@ void ya_cleanup_x() {
 	xcb_disconnect(ya.c);
 }
 
+// Called when registering a signal handler fails in ya_init
+void on_signal_register_error(int sig) {
+	printf("Failed to register handler for signal %i", sig);
+	exit(EXIT_FAILURE);
+}
+
 void ya_init() {
-	signal(SIGTERM, ya_sighandler);
-	signal(SIGINT, ya_sighandler);
-	signal(SIGKILL, ya_sighandler);
-	signal(SIGHUP, ya_sighandler);
+	if (signal(SIGTERM, ya_sighandler) == SIG_ERR) on_signal_register_error(SIGTERM);
+	if (signal(SIGINT, ya_sighandler)  == SIG_ERR) on_signal_register_error(SIGINT);
+	if (signal(SIGKILL, ya_sighandler) == SIG_ERR) on_signal_register_error(SIGKILL);
+	if (signal(SIGHUP, ya_sighandler)  == SIG_ERR) on_signal_register_error(SIGHUP);
 	ya.depth = 32;
 	ya.c 	= xcb_connect(NULL, NULL);
 	ya.scr 	= xcb_setup_roots_iterator(xcb_get_setup(ya.c)).data;
@@ -151,10 +157,13 @@ void ya_setup_bar(config_setting_t * set) {
 	int retcnf, retint;
 	const char *retstr;
 	ya_bar_t *bar = calloc(1, sizeof(ya_bar_t));
-	if (ya.curbar) {
-		bar->prev_bar = ya.curbar;
-		ya.curbar->next_bar = bar;
+	if (!ya.curbar) {
+		printf("Failed to allocate memory for bar\n");
+		ya_cleanup_x();
+		exit(EXIT_FAILURE);
 	}
+	bar->prev_bar = ya.curbar;
+	ya.curbar->next_bar = bar;
 	ya.curbar = bar;
 	retcnf = config_setting_lookup_string(set, "font", &retstr);
 	if(retcnf == CONFIG_FALSE) {
